@@ -5,6 +5,7 @@ pipeline {
     }
     environment {
         COMPOSE = '/var/jenkins_home/bin/docker-compose'
+        COMPOSE_PROJECT_NAME = 'dotnetdemo'
     }
     stages {
         stage('Checkout') {
@@ -22,8 +23,12 @@ pipeline {
             }
         }
         stage('Preparation') {
-            // volume blijft bewaard, enkel de containers worden vervangen
-            steps { sh '"$COMPOSE" down || true' }
+            steps {
+                sh '''
+                    "$COMPOSE" down || true
+                    docker rm -f todoapp todoappdb || true
+                '''
+            }
         }
         stage('Database') {
             steps {
@@ -35,8 +40,10 @@ pipeline {
                                 bash init-db.sh
                             '''
                         } catch (err) {
-                            // herstel: verse volume bij een mislukte start
-                            sh '"$COMPOSE" down -v || true'
+                            sh '''
+                                "$COMPOSE" down -v || true
+                                docker rm -f todoapp todoappdb || true
+                            '''
                             throw err
                         }
                     }
