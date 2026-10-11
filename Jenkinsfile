@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+    }
     environment {
         COMPOSE = '/var/jenkins_home/bin/docker-compose'
     }
@@ -19,13 +22,30 @@ pipeline {
             }
         }
         stage('Preparation') {
-            steps { sh '"$COMPOSE" down -v || true' }
+            // volume blijft bewaard, enkel de containers worden vervangen
+            steps { sh '"$COMPOSE" down || true' }
+        }
+        stage('Database') {
+            steps {
+                retry(3) {
+                    script {
+                        try {
+                            sh '''
+                                "$COMPOSE" up -d todoappdb
+                                bash init-db.sh
+                            '''
+                        } catch (err) {
+                            // herstel: verse volume bij een mislukte start
+                            sh '"$COMPOSE" down -v || true'
+                            throw err
+                        }
+                    }
+                }
+            }
         }
         stage('Build') {
             steps {
                 sh '''
-                    "$COMPOSE" up -d --build todoappdb
-                    bash init-db.sh
                     "$COMPOSE" up -d --build todoapp
                     docker ps
                 '''
